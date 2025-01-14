@@ -148,10 +148,27 @@ async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
         finally:
             await browser.close()
 
-async def scrape_all_leaderboards():
-    """Scrape the first 50 leaderboard pages with incremental file updates"""
-    logging.info("Starting scraping of first 50 leaderboard pages")
-    total_pages = 50
+def show_menu() -> int:
+    """Display interactive menu and return user's choice"""
+    print("\nReddit Community Scraper")
+    print("=" * 25)
+    print("1. Scrape first 50 pages")
+    print("2. Scrape first 250 pages")
+    print("3. Scrape first 1000 pages")
+    print("4. Exit")
+    
+    while True:
+        try:
+            choice = int(input("\nEnter your choice (1-4): "))
+            if 1 <= choice <= 4:
+                return choice
+            print("Please enter a number between 1 and 4")
+        except ValueError:
+            print("Please enter a valid number")
+
+async def scrape_all_leaderboards(total_pages: int):
+    """Scrape leaderboard pages with incremental file updates"""
+    logging.info(f"Starting scraping of first {total_pages} leaderboard pages")
     
     # Initialize output file
     output_file = initialize_output_file()
@@ -185,7 +202,31 @@ async def scrape_all_leaderboards():
 
 if __name__ == "__main__":
     import asyncio
-    try:
-        asyncio.run(scrape_all_leaderboards())
-    except Exception as e:
-        logging.error(f"Error during scraping: {str(e)}")
+    
+    # Map menu choices to page counts
+    PAGE_OPTIONS = {
+        1: 50,
+        2: 250,
+        3: 1000
+    }
+    
+    while True:
+        choice = show_menu()
+        
+        if choice == 4:
+            print("\nGoodbye!")
+            break
+            
+        total_pages = PAGE_OPTIONS[choice]
+        print(f"\nStarting scrape of {total_pages} pages...")
+        
+        try:
+            asyncio.run(scrape_all_leaderboards(total_pages))
+        except Exception as e:
+            logging.error(f"Error during scraping: {str(e)}")
+        
+        # Ask if user wants to continue
+        cont = input("\nWould you like to scrape more? (y/n): ").lower()
+        if cont != 'y':
+            print("\nGoodbye!")
+            break
