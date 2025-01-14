@@ -1,8 +1,19 @@
 import json
+import logging
 import os
 from pathlib import Path
 import httpx
 from bs4 import BeautifulSoup
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('scraping.log'),
+        logging.StreamHandler()
+    ]
+)
 
 def get_next_file_number(output_dir: str = "subreddits") -> int:
     """Get the next available file number in the output directory"""
@@ -32,27 +43,38 @@ async def scrape_leaderboard_page(page_num: int) -> list:
         response = await client.get(url, headers=headers)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
-            subreddit_divs = soup.find_all("div", {"data-prefixed-name": True})
-            return [div["data-prefixed-name"] for div in subreddit_divs]
+            # Find all community divs with data-community-id
+            subreddit_divs = soup.find_all("div", {"data-community-id": True})
+            
+            subreddits = []
+            for div in subreddit_divs:
+                # Extract the subreddit name from data-prefixed-name
+                subreddit_name = div.get("data-prefixed-name", "")
+                if subreddit_name:
+                    subreddits.append(subreddit_name)
+                    logging.info(f"Found subreddit: {subreddit_name}")
+            
+            return subreddits
+        logging.warning(f"Failed to fetch page {page_num}: HTTP {response.status_code}")
         return []
 
-async def scrape_all_leaderboards(max_pages: int = 10):
-    """Scrape multiple leaderboard pages"""
-    all_subreddits = []
+async def scrape_all_leaderboards():
+    """Scrape the first leaderboard page"""
+    logging.info("Starting scraping of first leaderboard page")
     
-    for page_num in range(1, max_pages + 1):
-        print(f"Scraping page {page_num}...")
-        subreddits = await scrape_leaderboard_page(page_num)
-        all_subreddits.extend(subreddits)
+    subreddits = await scrape_leaderboard_page(1)
     
     # Remove duplicates while preserving order
-    unique_subreddits = list(dict.fromkeys(all_subreddits))
+    unique_subreddits = list(dict.fromkeys(subreddits))
     
     # Save the results
     saved_path = save_subreddits(unique_subreddits)
-    print(f"\nFound {len(unique_subreddits)} unique subreddits")
-    print(f"Saved to: {saved_path}")
+    logging.info(f"\nFound {len(unique_subreddits)} unique subreddits")
+    logging.info(f"Saved to: {saved_path}")
 
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(scrape_all_leaderboards())
+    try:
+        asyncio.run(scrape_all_leaderboards())
+    except Exception as e:
+        logging.error(f"Error during scraping: {str(e)}")
