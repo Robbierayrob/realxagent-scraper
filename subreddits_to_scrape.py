@@ -128,6 +128,14 @@ async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
             with tqdm(total=total_items, desc=f"Page {page_num}/{total_pages}", unit="sub") as pbar:
                 for div in subreddit_divs:
                     try:
+                        # Safely extract rank
+                        rank_element = div.find("h6", class_="flex flex-col")
+                        rank = rank_element.text.strip() if rank_element else "N/A"
+                        
+                        # Safely extract URL
+                        url_element = div.find("a", class_="text-current")
+                        url = url_element["href"] if url_element else "N/A"
+                        
                         subreddit_data = {
                             "id": div.get("data-community-id", ""),
                             "name": div.get("data-prefixed-name", ""),
@@ -136,8 +144,8 @@ async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
                             "description": div.get("data-public-description-text", ""),
                             "subscribers": int(div.get("data-subscribers-count", 0)),
                             "metadata": {
-                                "rank": div.find("h6", class_="flex flex-col").text.strip(),
-                                "url": div.find("a", class_="text-current")["href"],
+                                "rank": rank,
+                                "url": url,
                                 "scraped_at": datetime.now().isoformat()
                             }
                         }
