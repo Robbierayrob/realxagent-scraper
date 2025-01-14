@@ -47,12 +47,18 @@ def append_to_file(filepath: Path, new_subreddits: list):
         with open(filepath, "r") as f:
             existing_data = json.load(f)
         
-        # Combine and deduplicate
-        combined = list(dict.fromkeys(existing_data + new_subreddits))
+        # Create a set of existing subreddit IDs for quick lookup
+        existing_ids = {sub['id'] for sub in existing_data}
+        
+        # Add only new subreddits that aren't already in the file
+        for sub in new_subreddits:
+            if sub['id'] not in existing_ids:
+                existing_data.append(sub)
+                existing_ids.add(sub['id'])
         
         # Write back to file
         with open(filepath, "w") as f:
-            json.dump(combined, f, indent=2)
+            json.dump(existing_data, f, indent=2)
             
     except Exception as e:
         logging.error(f"Error updating file: {str(e)}")
@@ -118,7 +124,7 @@ async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
             content = await page.content()
             soup = BeautifulSoup(content, "html.parser")
             
-            # Find all community divs
+            # Find all community divs and extract data in one pass
             subreddit_divs = soup.find_all("div", {"data-community-id": True})
             
             subreddits = []
@@ -128,24 +134,25 @@ async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
             with tqdm(total=total_items, desc=f"Page {page_num}/{total_pages}", unit="sub") as pbar:
                 for div in subreddit_divs:
                     try:
-                        # Safely extract rank
-                        rank_element = div.find("h6", class_="flex flex-col")
-                        rank = rank_element.text.strip() if rank_element else "N/A"
+                        # Extract all data attributes at once
+                        data_attrs = div.attrs
                         
-                        # Safely extract URL
+                        # Extract nested elements
+                        rank_element = div.find("h6", class_="flex flex-col")
                         url_element = div.find("a", class_="text-current")
-                        url = url_element["href"] if url_element else "N/A"
+                        icon_element = div.find("faceplate-img")
                         
                         subreddit_data = {
-                            "id": div.get("data-community-id", ""),
-                            "name": div.get("data-prefixed-name", ""),
-                            "active_users": int(div.get("data-active-count", 0)),
-                            "icon_url": div.get("data-icon-url", ""),
-                            "description": div.get("data-public-description-text", ""),
-                            "subscribers": int(div.get("data-subscribers-count", 0)),
+                            "id": data_attrs.get("data-community-id", ""),
+                            "name": data_attrs.get("data-prefixed-name", ""),
+                            "active_users": int(data_attrs.get("data-active-count", 0)),
+                            "icon_url": data_attrs.get("data-icon-url", ""),
+                            "description": data_attrs.get("data-public-description-text", ""),
+                            "subscribers": int(data_attrs.get("data-subscribers-count", 0)),
                             "metadata": {
-                                "rank": rank,
-                                "url": url,
+                                "rank": rank_element.text.strip() if rank_element else "N/A",
+                                "url": url_element["href"] if url_element else "N/A",
+                                "icon": icon_element["src"] if icon_element else "N/A",
                                 "scraped_at": datetime.now().isoformat()
                             }
                         }
