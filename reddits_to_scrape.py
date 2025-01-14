@@ -25,25 +25,35 @@ def get_next_file_number(output_dir: str = "subreddits") -> int:
     existing_files = list(Path(output_dir).glob("subreddits_*.json"))
     return len(existing_files) + 1
 
-def save_subreddits(subreddits: list, output_dir: str = "subreddits"):
-    """Save subreddits to JSON file, appending to existing data"""
+def initialize_output_file(output_dir: str = "subreddits") -> Path:
+    """Initialize the output file and return its path"""
     Path(output_dir).mkdir(exist_ok=True)
-    filename = "subreddits.json"
-    filepath = Path(output_dir) / filename
+    filepath = Path(output_dir) / "subreddits.json"
     
-    # Load existing data if file exists
-    existing_data = []
-    if filepath.exists():
+    # Create empty file if it doesn't exist
+    if not filepath.exists():
+        with open(filepath, "w") as f:
+            json.dump([], f)
+    
+    return filepath
+
+def append_to_file(filepath: Path, new_subreddits: list):
+    """Append new subreddits to the file while maintaining uniqueness"""
+    try:
+        # Read existing data
         with open(filepath, "r") as f:
             existing_data = json.load(f)
-    
-    # Combine and deduplicate while preserving order
-    combined = list(dict.fromkeys(existing_data + subreddits))
-    
-    with open(filepath, "w") as f:
-        json.dump(combined, f, indent=2)
-    
-    return str(filepath)
+        
+        # Combine and deduplicate
+        combined = list(dict.fromkeys(existing_data + new_subreddits))
+        
+        # Write back to file
+        with open(filepath, "w") as f:
+            json.dump(combined, f, indent=2)
+            
+    except Exception as e:
+        logging.error(f"Error updating file: {str(e)}")
+        raise
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -139,34 +149,39 @@ async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
             await browser.close()
 
 async def scrape_all_leaderboards():
-    """Scrape the first 50 leaderboard pages"""
+    """Scrape the first 50 leaderboard pages with incremental file updates"""
     logging.info("Starting scraping of first 50 leaderboard pages")
     total_pages = 50
-    all_subreddits = []
+    
+    # Initialize output file
+    output_file = initialize_output_file()
     
     try:
         for page_num in range(1, total_pages + 1):
             print(f"\nStarting scrape of page {page_num}...")
             subreddits = await scrape_leaderboard_page(page_num, total_pages)
-            all_subreddits.extend(subreddits)
-            print("\n")  # Add newline after progress bar
+            
+            # Append results to file after each page
+            if subreddits:
+                append_to_file(output_file, subreddits)
+                print(f"\nAdded {len(subreddits)} subreddits from page {page_num}")
             
             # Add more conservative delay between pages
             if page_num < total_pages:
                 delay = random.uniform(3.0, 5.0)
                 print(f"\nWaiting {delay:.1f} seconds before next page...")
                 await asyncio.sleep(delay)
+                
     except Exception as e:
         logging.error(f"Error occurred: {str(e)}")
         return
     
-    # Remove duplicates while preserving order
-    unique_subreddits = list(dict.fromkeys(subreddits))
+    # Final stats
+    with open(output_file, "r") as f:
+        final_data = json.load(f)
     
-    # Save the results
-    saved_path = save_subreddits(unique_subreddits)
-    logging.info(f"\nFound {len(unique_subreddits)} unique subreddits")
-    logging.info(f"Saved to: {saved_path}")
+    logging.info(f"\nFound {len(final_data)} unique subreddits")
+    logging.info(f"Saved to: {output_file}")
 
 if __name__ == "__main__":
     import asyncio
