@@ -1,11 +1,13 @@
 import json
 import logging
 import os
+import random
+import time
 from pathlib import Path
-import httpx
+from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 
-# Configure logging
+# Configure logging and user agents
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -32,45 +34,74 @@ def save_subreddits(subreddits: list, output_dir: str = "subreddits"):
     
     return str(filepath)
 
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+]
+
 async def scrape_leaderboard_page(page_num: int) -> list:
-    """Scrape a single leaderboard page for subreddit names"""
+    """Scrape a single leaderboard page for subreddit names using Playwright"""
     url = f"https://www.reddit.com/best/communities/{page_num}/"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
     
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        # Add more headers to look like a real browser
-        headers.update({
+    async with async_playwright() as p:
+        # Launch browser with random user agent
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(
+            user_agent=random.choice(USER_AGENTS),
+            viewport={'width': 1920, 'height': 1080},
+            locale='en-US',
+            timezone_id='America/New_York'
+        )
+        
+        # Add realistic browser headers
+        await context.set_extra_http_headers({
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate, br",
             "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1"
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
+            "Cache-Control": "max-age=0"
         })
         
-        # Add cookies to handle reddit's initial redirect
-        cookies = {
-            "reddit_session": "null",  # Placeholder for session
-            "over18": "1"  # Bypass age gate
-        }
+        page = await context.new_page()
         
-        response = await client.get(url, headers=headers, cookies=cookies)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, "html.parser")
-            # Find all community divs with data-community-id
+        try:
+            # Add random delay to mimic human behavior
+            await page.wait_for_timeout(random.randint(1000, 3000))
+            
+            # Navigate to page
+            await page.goto(url, wait_until="networkidle")
+            
+            # Wait for community list to load
+            await page.wait_for_selector('div[data-community-id]', timeout=10000)
+            
+            # Get page content
+            content = await page.content()
+            soup = BeautifulSoup(content, "html.parser")
+            
+            # Find all community divs
             subreddit_divs = soup.find_all("div", {"data-community-id": True})
             
             subreddits = []
             for div in subreddit_divs:
-                # Extract the subreddit name from data-prefixed-name
                 subreddit_name = div.get("data-prefixed-name", "")
                 if subreddit_name:
                     subreddits.append(subreddit_name)
                     logging.info(f"Found subreddit: {subreddit_name}")
             
             return subreddits
-        logging.warning(f"Failed to fetch page {page_num}: HTTP {response.status_code}")
-        return []
+            
+        except Exception as e:
+            logging.error(f"Error scraping page {page_num}: {str(e)}")
+            return []
+        finally:
+            await browser.close()
 
 async def scrape_all_leaderboards():
     """Scrape the first leaderboard page"""
