@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 from httpx import AsyncClient
@@ -30,7 +31,7 @@ async def get_subreddit_info(subreddit: str) -> Dict:
             "title": data["title"],
             "description": data["public_description"],
             "members": data["subscribers"],
-            "created_utc": data["created_utc"],
+            "created_utc": datetime.utcfromtimestamp(data["created_utc"]).strftime('%Y-%m-%d %H:%M:%S UTC'),
             "nsfw": data["over18"],
             "url": data["url"],
             "related_subreddits": related_subs
@@ -59,7 +60,7 @@ def display_subreddit_info(info: Dict):
     print(f"Title: {info['title']}")
     print(f"Description: {info['description']}")
     print(f"Members: {info['members']:,}")
-    print(f"Created: {info['created_utc']}")
+    print(f"Created: {info['created_utc']}")  # This will now show the formatted date
     print(f"NSFW: {'Yes' if info['nsfw'] else 'No'}")
     print(f"URL: {info['url']}")
     print("\nRelated Subreddits:")
