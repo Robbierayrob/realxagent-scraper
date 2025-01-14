@@ -39,8 +39,22 @@ async def scrape_leaderboard_page(page_num: int) -> list:
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
     
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, headers=headers)
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        # Add more headers to look like a real browser
+        headers.update({
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1"
+        })
+        
+        # Add cookies to handle reddit's initial redirect
+        cookies = {
+            "reddit_session": "null",  # Placeholder for session
+            "over18": "1"  # Bypass age gate
+        }
+        
+        response = await client.get(url, headers=headers, cookies=cookies)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
             # Find all community divs with data-community-id
@@ -62,7 +76,12 @@ async def scrape_all_leaderboards():
     """Scrape the first leaderboard page"""
     logging.info("Starting scraping of first leaderboard page")
     
-    subreddits = await scrape_leaderboard_page(1)
+    try:
+        subreddits = await scrape_leaderboard_page(1)
+    except httpx.HTTPStatusError as e:
+        logging.error(f"HTTP error occurred: {str(e)}")
+        logging.error(f"Response content: {e.response.text}")
+        return
     
     # Remove duplicates while preserving order
     unique_subreddits = list(dict.fromkeys(subreddits))
