@@ -41,7 +41,7 @@ def get_next_output_filename(output_dir: str = "subreddits") -> Path:
     return Path(output_dir) / filename
 
 def append_to_file(filepath: Path, new_subreddits: list):
-    """Append new subreddits to the file while maintaining uniqueness"""
+    """Append new subreddits to the file while maintaining uniqueness and order"""
     try:
         # Read existing data
         with open(filepath, "r") as f:
@@ -51,14 +51,19 @@ def append_to_file(filepath: Path, new_subreddits: list):
         existing_ids = {sub['id'] for sub in existing_data}
         
         # Add only new subreddits that aren't already in the file
+        # Maintain order by appending to the end
+        added_count = 0
         for sub in new_subreddits:
             if sub['id'] not in existing_ids:
                 existing_data.append(sub)
                 existing_ids.add(sub['id'])
+                added_count += 1
         
         # Write back to file
         with open(filepath, "w") as f:
             json.dump(existing_data, f, indent=2)
+        
+        return added_count
             
     except Exception as e:
         logging.error(f"Error updating file: {str(e)}")
@@ -149,12 +154,7 @@ async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
                             "icon_url": data_attrs.get("data-icon-url", ""),
                             "description": data_attrs.get("data-public-description-text", ""),
                             "subscribers": int(data_attrs.get("data-subscribers-count", 0)),
-                            "metadata": {
-                                "rank": rank_element.text.strip() if rank_element else "N/A",
-                                "url": url_element["href"] if url_element else "N/A",
-                                "icon": icon_element["src"] if icon_element else "N/A",
-                                "scraped_at": datetime.now().isoformat()
-                            }
+                            "scraped_at": datetime.now().isoformat()
                         }
                         
                         if subreddit_data["name"]:
@@ -218,8 +218,8 @@ async def scrape_all_leaderboards(total_pages: int):
             
             # Append results to file after each page
             if subreddits:
-                append_to_file(output_file, subreddits)
-                print(f"\nAdded {len(subreddits)} subreddits from page {page_num}")
+                added_count = append_to_file(output_file, subreddits)
+                print(f"\nAdded {added_count} new subreddits from page {page_num}")
             
             # Add more conservative delay between pages
             if page_num < total_pages:
