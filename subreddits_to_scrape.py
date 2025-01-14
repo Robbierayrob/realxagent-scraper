@@ -25,17 +25,20 @@ def get_next_file_number(output_dir: str = "subreddits") -> int:
     existing_files = list(Path(output_dir).glob("subreddits_*.json"))
     return len(existing_files) + 1
 
-def initialize_output_file(output_dir: str = "subreddits") -> Path:
-    """Initialize the output file and return its path"""
+def get_next_output_filename(output_dir: str = "subreddits") -> Path:
+    """Generate a unique output filename with timestamp and sequence number"""
     Path(output_dir).mkdir(exist_ok=True)
-    filepath = Path(output_dir) / "subreddits.json"
     
-    # Create empty file if it doesn't exist
-    if not filepath.exists():
-        with open(filepath, "w") as f:
-            json.dump([], f)
+    # Get current timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
-    return filepath
+    # Find the next available sequence number
+    existing_files = list(Path(output_dir).glob(f"subreddits_{timestamp}_*.json"))
+    next_num = len(existing_files) + 1
+    
+    # Format the filename
+    filename = f"subreddits_{timestamp}_{next_num:06d}.json"
+    return Path(output_dir) / filename
 
 def append_to_file(filepath: Path, new_subreddits: list):
     """Append new subreddits to the file while maintaining uniqueness"""
@@ -170,8 +173,11 @@ async def scrape_all_leaderboards(total_pages: int):
     """Scrape leaderboard pages with incremental file updates"""
     logging.info(f"Starting scraping of first {total_pages} leaderboard pages")
     
-    # Initialize output file
-    output_file = initialize_output_file()
+    # Create new output file with timestamp and sequence number
+    output_file = get_next_output_filename()
+    # Initialize with empty list
+    with open(output_file, "w") as f:
+        json.dump([], f)
     
     try:
         for page_num in range(1, total_pages + 1):
