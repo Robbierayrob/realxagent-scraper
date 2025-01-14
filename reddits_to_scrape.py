@@ -3,9 +3,11 @@ import logging
 import os
 import random
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
+from tqdm import tqdm
 
 # Configure logging and user agents
 logging.basicConfig(
@@ -41,9 +43,10 @@ USER_AGENTS = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 ]
 
-async def scrape_leaderboard_page(page_num: int) -> list:
+async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
     """Scrape a single leaderboard page for subreddit names using Playwright"""
     url = f"https://www.reddit.com/best/communities/{page_num}/"
+    start_time = time.time()
     
     async with async_playwright() as p:
         # Launch browser with random user agent
@@ -89,11 +92,26 @@ async def scrape_leaderboard_page(page_num: int) -> list:
             subreddit_divs = soup.find_all("div", {"data-community-id": True})
             
             subreddits = []
-            for div in subreddit_divs:
-                subreddit_name = div.get("data-prefixed-name", "")
-                if subreddit_name:
-                    subreddits.append(subreddit_name)
-                    logging.info(f"Found subreddit: {subreddit_name}")
+            total_items = len(subreddit_divs)
+            
+            # Initialize progress bar
+            with tqdm(total=total_items, desc=f"Page {page_num}/{total_pages}", unit="sub") as pbar:
+                for div in subreddit_divs:
+                    subreddit_name = div.get("data-prefixed-name", "")
+                    if subreddit_name:
+                        subreddits.append(subreddit_name)
+                        # Real-time terminal logging
+                        print(f"\r\033[KFound: {subreddit_name}", end="", flush=True)
+                        pbar.update(1)
+                    
+                    # Calculate ETA
+                    elapsed_time = time.time() - start_time
+                    items_processed = pbar.n
+                    if items_processed > 0:
+                        time_per_item = elapsed_time / items_processed
+                        remaining_items = total_items - items_processed
+                        eta = timedelta(seconds=int(remaining_items * time_per_item))
+                        pbar.set_postfix(ETA=str(eta))
             
             return subreddits
             
@@ -106,9 +124,12 @@ async def scrape_leaderboard_page(page_num: int) -> list:
 async def scrape_all_leaderboards():
     """Scrape the first leaderboard page"""
     logging.info("Starting scraping of first leaderboard page")
+    total_pages = 1  # Since we're only scraping the first page
     
     try:
-        subreddits = await scrape_leaderboard_page(1)
+        print("\nStarting scrape...")
+        subreddits = await scrape_leaderboard_page(1, total_pages)
+        print("\n")  # Add newline after progress bar
     except Exception as e:
         logging.error(f"Error occurred: {str(e)}")
         return
