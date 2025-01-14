@@ -75,8 +75,8 @@ async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
         page = await context.new_page()
         
         try:
-            # Add random delay to mimic human behavior
-            await page.wait_for_timeout(random.randint(1000, 3000))
+            # Add minimal delay to maximize speed
+            await page.wait_for_timeout(random.randint(500, 1000))
             
             # Show loading indicator while navigating
             print("\nLoading page...", end="", flush=True)
@@ -130,14 +130,21 @@ async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
             await browser.close()
 
 async def scrape_all_leaderboards():
-    """Scrape the first leaderboard page"""
-    logging.info("Starting scraping of first leaderboard page")
-    total_pages = 1  # Since we're only scraping the first page
+    """Scrape the first 10 leaderboard pages"""
+    logging.info("Starting scraping of first 10 leaderboard pages")
+    total_pages = 10
+    all_subreddits = []
     
     try:
-        print("\nStarting scrape...")
-        subreddits = await scrape_leaderboard_page(1, total_pages)
-        print("\n")  # Add newline after progress bar
+        for page_num in range(1, total_pages + 1):
+            print(f"\nStarting scrape of page {page_num}...")
+            subreddits = await scrape_leaderboard_page(page_num, total_pages)
+            all_subreddits.extend(subreddits)
+            print("\n")  # Add newline after progress bar
+            
+            # Add a small delay between pages to avoid being blocked
+            if page_num < total_pages:
+                await asyncio.sleep(random.uniform(1.0, 2.5))
     except Exception as e:
         logging.error(f"Error occurred: {str(e)}")
         return
