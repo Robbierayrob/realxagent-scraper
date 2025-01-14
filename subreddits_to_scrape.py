@@ -19,26 +19,10 @@ logging.basicConfig(
     ]
 )
 
-def get_next_file_number(output_dir: str = "subreddits") -> int:
-    """Get the next available file number in the output directory"""
+def get_output_filepath(output_dir: str = "subreddits") -> Path:
+    """Get the consistent output file path"""
     Path(output_dir).mkdir(exist_ok=True)
-    existing_files = list(Path(output_dir).glob("subreddits_*.json"))
-    return len(existing_files) + 1
-
-def get_next_output_filename(output_dir: str = "subreddits") -> Path:
-    """Generate a unique output filename with timestamp and sequence number"""
-    Path(output_dir).mkdir(exist_ok=True)
-    
-    # Get current timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    # Find the next available sequence number
-    existing_files = list(Path(output_dir).glob(f"subreddits_{timestamp}_*.json"))
-    next_num = len(existing_files) + 1
-    
-    # Format the filename
-    filename = f"subreddits_{timestamp}_{next_num:06d}.json"
-    return Path(output_dir) / filename
+    return Path(output_dir) / "subreddits.json"
 
 def append_to_file(filepath: Path, new_subreddits: list):
     """Append new subreddits to the file while maintaining uniqueness and order"""
@@ -234,17 +218,18 @@ def show_menu() -> int:
     """Display interactive menu and return user's choice"""
     print("\nReddit Community Scraper")
     print("=" * 25)
-    print("1. Scrape first 50 pages")
-    print("2. Scrape first 250 pages")
-    print("3. Scrape first 1000 pages")
-    print("4. Exit")
+    print("1. Scrape first page only")
+    print("2. Scrape first 50 pages")
+    print("3. Scrape first 250 pages")
+    print("4. Scrape first 1000 pages")
+    print("5. Exit")
     
     while True:
         try:
-            choice = int(input("\nEnter your choice (1-4): "))
-            if 1 <= choice <= 4:
+            choice = int(input("\nEnter your choice (1-5): "))
+            if 1 <= choice <= 5:
                 return choice
-            print("Please enter a number between 1 and 4")
+            print("Please enter a number between 1 and 5")
         except ValueError:
             print("Please enter a valid number")
 
@@ -252,11 +237,13 @@ async def scrape_all_leaderboards(total_pages: int):
     """Scrape leaderboard pages with incremental file updates"""
     logging.info(f"Starting scraping of first {total_pages} leaderboard pages")
     
-    # Create new output file with timestamp and sequence number
-    output_file = get_next_output_filename()
-    # Initialize with empty list
-    with open(output_file, "w") as f:
-        json.dump([], f)
+    # Use consistent output file
+    output_file = get_output_filepath()
+    
+    # Initialize file if it doesn't exist
+    if not output_file.exists():
+        with open(output_file, "w") as f:
+            json.dump([], f)
     
     try:
         for page_num in range(1, total_pages + 1):
@@ -290,9 +277,10 @@ if __name__ == "__main__":
     
     # Map menu choices to page counts
     PAGE_OPTIONS = {
-        1: 50,
-        2: 250,
-        3: 1000
+        1: 1,
+        2: 50,
+        3: 250,
+        4: 1000
     }
     
     while True:
