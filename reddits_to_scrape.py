@@ -26,13 +26,22 @@ def get_next_file_number(output_dir: str = "subreddits") -> int:
     return len(existing_files) + 1
 
 def save_subreddits(subreddits: list, output_dir: str = "subreddits"):
-    """Save subreddits to JSON file with sequential numbering"""
-    next_num = get_next_file_number(output_dir)
-    filename = f"subreddits_{next_num:04d}.json"
+    """Save subreddits to JSON file, appending to existing data"""
+    Path(output_dir).mkdir(exist_ok=True)
+    filename = "subreddits.json"
     filepath = Path(output_dir) / filename
     
+    # Load existing data if file exists
+    existing_data = []
+    if filepath.exists():
+        with open(filepath, "r") as f:
+            existing_data = json.load(f)
+    
+    # Combine and deduplicate while preserving order
+    combined = list(dict.fromkeys(existing_data + subreddits))
+    
     with open(filepath, "w") as f:
-        json.dump(subreddits, f, indent=2)
+        json.dump(combined, f, indent=2)
     
     return str(filepath)
 
@@ -75,8 +84,8 @@ async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
         page = await context.new_page()
         
         try:
-            # Add minimal delay to maximize speed
-            await page.wait_for_timeout(random.randint(500, 1000))
+            # Add conservative delay to avoid blocks
+            await page.wait_for_timeout(random.randint(1500, 3000))
             
             # Show loading indicator while navigating
             print("\nLoading page...", end="", flush=True)
@@ -130,9 +139,9 @@ async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
             await browser.close()
 
 async def scrape_all_leaderboards():
-    """Scrape the first 10 leaderboard pages"""
-    logging.info("Starting scraping of first 10 leaderboard pages")
-    total_pages = 10
+    """Scrape the first 50 leaderboard pages"""
+    logging.info("Starting scraping of first 50 leaderboard pages")
+    total_pages = 50
     all_subreddits = []
     
     try:
@@ -142,9 +151,11 @@ async def scrape_all_leaderboards():
             all_subreddits.extend(subreddits)
             print("\n")  # Add newline after progress bar
             
-            # Add a small delay between pages to avoid being blocked
+            # Add more conservative delay between pages
             if page_num < total_pages:
-                await asyncio.sleep(random.uniform(1.0, 2.5))
+                delay = random.uniform(3.0, 5.0)
+                print(f"\nWaiting {delay:.1f} seconds before next page...")
+                await asyncio.sleep(delay)
     except Exception as e:
         logging.error(f"Error occurred: {str(e)}")
         return
