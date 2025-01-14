@@ -47,16 +47,54 @@ def append_to_file(filepath: Path, new_subreddits: list):
         with open(filepath, "r") as f:
             existing_data = json.load(f)
         
-        # Create a set of existing subreddit IDs for quick lookup
-        existing_ids = {sub['id'] for sub in existing_data}
+        # Create a dict of existing subreddits for quick lookup
+        existing_subs = {sub['id']: sub for sub in existing_data}
         
         # Add only new subreddits that aren't already in the file
         # Maintain order by appending to the end
         added_count = 0
-        for sub in new_subreddits:
-            if sub['id'] not in existing_ids:
-                existing_data.append(sub)
-                existing_ids.add(sub['id'])
+        current_time = datetime.now().isoformat()
+        
+        for new_sub in new_subreddits:
+            sub_id = new_sub['id']
+            
+            if sub_id in existing_subs:
+                # Update existing subreddit
+                existing_sub = existing_subs[sub_id]
+                
+                # Store previous values
+                new_sub['previous_subscribers'] = existing_sub['subscribers']
+                new_sub['previous_active_users'] = existing_sub['active_users']
+                
+                # Calculate growth rates
+                sub_growth = new_sub['subscribers'] - existing_sub['subscribers']
+                new_sub['subscriber_growth_rate'] = sub_growth / existing_sub['subscribers'] if existing_sub['subscribers'] > 0 else 0
+                
+                active_growth = new_sub['active_users'] - existing_sub['active_users']
+                new_sub['active_user_growth_rate'] = active_growth / existing_sub['active_users'] if existing_sub['active_users'] > 0 else 0
+                
+                # Calculate engagement ratio
+                new_sub['engagement_ratio'] = new_sub['active_users'] / new_sub['subscribers'] if new_sub['subscribers'] > 0 else 0
+                
+                # Update metadata
+                new_sub['scrape_count'] = existing_sub.get('scrape_count', 0) + 1
+                new_sub['first_seen'] = existing_sub.get('first_seen', current_time)
+                new_sub['last_updated'] = current_time
+                
+                # Replace existing entry
+                existing_data[existing_data.index(existing_sub)] = new_sub
+            else:
+                # New subreddit
+                new_sub['previous_subscribers'] = new_sub['subscribers']
+                new_sub['previous_active_users'] = new_sub['active_users']
+                new_sub['subscriber_growth_rate'] = 0
+                new_sub['active_user_growth_rate'] = 0
+                new_sub['engagement_ratio'] = new_sub['active_users'] / new_sub['subscribers'] if new_sub['subscribers'] > 0 else 0
+                new_sub['scrape_count'] = 1
+                new_sub['first_seen'] = current_time
+                new_sub['last_updated'] = current_time
+                
+                existing_data.append(new_sub)
                 added_count += 1
         
         # Write back to file
@@ -154,7 +192,16 @@ async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
                             "icon_url": data_attrs.get("data-icon-url", ""),
                             "description": data_attrs.get("data-public-description-text", ""),
                             "subscribers": int(data_attrs.get("data-subscribers-count", 0)),
-                            "scraped_at": datetime.now().isoformat()
+                            "scraped_at": datetime.now().isoformat(),
+                            # These will be populated in append_to_file
+                            "previous_subscribers": 0,
+                            "previous_active_users": 0,
+                            "subscriber_growth_rate": 0,
+                            "active_user_growth_rate": 0,
+                            "engagement_ratio": 0,
+                            "scrape_count": 0,
+                            "first_seen": "",
+                            "last_updated": ""
                         }
                         
                         if subreddit_data["name"]:
