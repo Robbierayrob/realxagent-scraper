@@ -2,7 +2,7 @@
 
 A powerful tool for scraping and analyzing Reddit community data, tracking growth metrics, and storing historical data. Built with Python and Playwright for reliable scraping.
 
-![Reddit Scraper](https://imgur.com/a/gXEpgC3) *(example image)*
+![Reddit Scraper](https://i.imgur.com/gXEpgC3.png)
 
 ## Features ✨
 
