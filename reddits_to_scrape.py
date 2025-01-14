@@ -78,11 +78,19 @@ async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
             # Add random delay to mimic human behavior
             await page.wait_for_timeout(random.randint(1000, 3000))
             
+            # Show loading indicator while navigating
+            print("\nLoading page...", end="", flush=True)
+            
             # Navigate to page
             await page.goto(url, wait_until="networkidle")
+            print("\rPage loaded successfully", flush=True)
+            
+            # Show loading indicator while waiting for content
+            print("Loading community list...", end="", flush=True)
             
             # Wait for community list to load
             await page.wait_for_selector('div[data-community-id]', timeout=10000)
+            print("\rCommunity list loaded successfully", flush=True)
             
             # Get page content
             content = await page.content()
