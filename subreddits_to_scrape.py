@@ -127,12 +127,29 @@ async def scrape_leaderboard_page(page_num: int, total_pages: int = 1) -> list:
             # Initialize progress bar
             with tqdm(total=total_items, desc=f"Page {page_num}/{total_pages}", unit="sub") as pbar:
                 for div in subreddit_divs:
-                    subreddit_name = div.get("data-prefixed-name", "")
-                    if subreddit_name:
-                        subreddits.append(subreddit_name)
-                        # Real-time terminal logging
-                        print(f"\r\033[KFound: {subreddit_name}", end="", flush=True)
-                        pbar.update(1)
+                    try:
+                        subreddit_data = {
+                            "id": div.get("data-community-id", ""),
+                            "name": div.get("data-prefixed-name", ""),
+                            "active_users": int(div.get("data-active-count", 0)),
+                            "icon_url": div.get("data-icon-url", ""),
+                            "description": div.get("data-public-description-text", ""),
+                            "subscribers": int(div.get("data-subscribers-count", 0)),
+                            "metadata": {
+                                "rank": div.find("h6", class_="flex flex-col").text.strip(),
+                                "url": div.find("a", class_="text-current")["href"],
+                                "scraped_at": datetime.now().isoformat()
+                            }
+                        }
+                        
+                        if subreddit_data["name"]:
+                            subreddits.append(subreddit_data)
+                            # Real-time terminal logging
+                            print(f"\r\033[KFound: {subreddit_data['name']} ({subreddit_data['subscribers']} subs)", end="", flush=True)
+                            pbar.update(1)
+                    except Exception as e:
+                        logging.error(f"Error parsing subreddit div: {str(e)}")
+                        continue
                     
                     # Calculate ETA
                     elapsed_time = time.time() - start_time
