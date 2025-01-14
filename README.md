@@ -118,6 +118,15 @@ The output JSON contains the following fields for each subreddit:
 
 MIT License
 
+## Disclaimer ⚠️
+
+This project is for personal/educational use only. The developers are not responsible for:
+- Any legal issues arising from the use of this software
+- Any damage caused by improper use
+- Any violations of Reddit's terms of service
+
+Please use responsibly and respect Reddit's API usage policies.
+
 ## Support ❤️
 
 For issues and feature requests, please open an issue on GitHub.
