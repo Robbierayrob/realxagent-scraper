@@ -109,9 +109,8 @@ async def scrape_all_leaderboards():
     
     try:
         subreddits = await scrape_leaderboard_page(1)
-    except httpx.HTTPStatusError as e:
-        logging.error(f"HTTP error occurred: {str(e)}")
-        logging.error(f"Response content: {e.response.text}")
+    except Exception as e:
+        logging.error(f"Error occurred: {str(e)}")
         return
     
     # Remove duplicates while preserving order
